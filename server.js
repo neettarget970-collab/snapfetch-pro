@@ -9,10 +9,10 @@ const PORT = process.env.PORT || 3000;
 
 // ✅ HOME
 app.get("/", (req, res) => {
-    res.send("SnapFetch PRO API 🚀");
+    res.send("SnapFetch PRO MAX ⚡");
 });
 
-// ✅ VIDEO INFO (QUALITY LIST)
+// 🚀 FAST VIDEO INFO (OPTIMIZED)
 app.get("/info", (req, res) => {
 
     const url = req.query.url;
@@ -21,54 +21,77 @@ app.get("/info", (req, res) => {
         return res.json({ status: "error", message: "No URL" });
     }
 
-    const command = `yt-dlp -j "${url}"`;
+    // ⚡ FAST yt-dlp (no extra data)
+    const command = `yt-dlp -j --no-warnings --no-playlist "${url}"`;
 
-    exec(command, { maxBuffer: 1024 * 1024 * 10 }, (err, stdout, stderr) => {
+    exec(command, { maxBuffer: 1024 * 1024 * 10 }, (err, stdout) => {
 
         if (err) {
-            console.log("ERROR:", err);
-            return res.json({ status: "error", message: "Failed" });
+            return res.json({ status: "error", message: "Extraction failed" });
         }
 
         try {
             const data = JSON.parse(stdout);
 
-            const formats = [];
+            let formats = [];
 
             data.formats.forEach(f => {
-                if (f.url && f.height) {
+
+                // ✅ FILTER ONLY GOOD FORMATS
+                if (
+                    f.url &&
+                    f.ext === "mp4" &&
+                    f.height &&
+                    f.vcodec !== "none"
+                ) {
                     formats.push({
                         quality: f.height + "p",
-                        url: f.url
+                        url: f.url,
+                        height: f.height
                     });
                 }
             });
 
-            // remove duplicates
-            const unique = [];
-            const seen = {};
+            // ❌ NO FORMAT FOUND
+            if (formats.length === 0) {
+                return res.json({ status: "error", message: "No formats" });
+            }
+
+            // 🔥 REMOVE DUPLICATES (KEEP BEST)
+            const bestMap = {};
 
             formats.forEach(f => {
-                if (!seen[f.quality]) {
-                    seen[f.quality] = true;
-                    unique.push(f);
+                if (!bestMap[f.height]) {
+                    bestMap[f.height] = f;
                 }
             });
 
+            let cleanFormats = Object.values(bestMap);
+
+            // 🔥 SORT (HIGH → LOW)
+            cleanFormats.sort((a, b) => b.height - a.height);
+
+            // 🔥 LIMIT (MAX 6 OPTIONS)
+            cleanFormats = cleanFormats.slice(0, 6);
+
+            // 🔥 FINAL RESPONSE
             res.json({
                 status: "success",
                 title: data.title,
                 thumbnail: data.thumbnail,
-                formats: unique
+                formats: cleanFormats.map(f => ({
+                    quality: f.quality,
+                    url: f.url
+                }))
             });
 
         } catch (e) {
-            res.json({ status: "error", message: "Parsing error" });
+            res.json({ status: "error", message: "Parsing failed" });
         }
     });
 });
 
-// ✅ DIRECT DOWNLOAD (BEST QUALITY)
+// ⚡ DIRECT BEST QUALITY
 app.get("/download", (req, res) => {
 
     const url = req.query.url;
@@ -77,9 +100,9 @@ app.get("/download", (req, res) => {
         return res.json({ status: "error" });
     }
 
-    const command = `yt-dlp -f best -g "${url}"`;
+    const command = `yt-dlp -f best[ext=mp4] -g "${url}"`;
 
-    exec(command, (err, stdout, stderr) => {
+    exec(command, (err, stdout) => {
 
         if (err) {
             return res.json({ status: "error" });
@@ -92,7 +115,7 @@ app.get("/download", (req, res) => {
     });
 });
 
-// START SERVER
+// 🚀 START
 app.listen(PORT, () => {
     console.log("Server running on port " + PORT);
 });
